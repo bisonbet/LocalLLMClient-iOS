@@ -165,7 +165,8 @@ packageTargets.append(contentsOf: [
             .headerSearchPath(".")
         ],
         cxxSettings: [
-            .headerSearchPath(".")
+            .headerSearchPath("."),
+            .unsafeFlags(["-std=c++17", "-stdlib=libc++"])
         ],
         swiftSettings: [
             .interoperabilityMode(.Cxx)
@@ -230,7 +231,8 @@ packageTargets.append(contentsOf: [
             .headerSearchPath(".")
         ],
         cxxSettings: [
-            .headerSearchPath(".")
+            .headerSearchPath("."),
+            .unsafeFlags(["-std=c++17", "-stdlib=libc++"])
         ],
         swiftSettings: [
             .interoperabilityMode(.Cxx)
