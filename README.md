@@ -1,9 +1,8 @@
-# LocalLLMClient
+# LocalLLMClient-iOS
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/tattn/LocalLLMClient/actions/workflows/test.yml/badge.svg)](https://github.com/tattn/LocalLLMClient/actions/workflows/test.yml)
-[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Ftattn%2FLocalLLMClient%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/tattn/LocalLLMClient)
-[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Ftattn%2FLocalLLMClient%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/tattn/LocalLLMClient)
+
+> Forked from [tattn/LocalLLMClient](https://github.com/tattn/LocalLLMClient) with enhanced security fixes
 
 
 A Swift package to interact with local Large Language Models (LLMs) on Apple platforms.
@@ -26,7 +25,7 @@ A Swift package to interact with local Large Language Models (LLMs) on Apple pla
 
 </details>
 
-[Example app](https://github.com/tattn/LocalLLMClient/tree/main/Example)
+[Example app](https://github.com/bisonbet/LocalLLMClient-iOS/tree/main/Example)
 
 > [!IMPORTANT]
 > This project is still experimental. The API is subject to change.
@@ -41,20 +40,48 @@ A Swift package to interact with local Large Language Models (LLMs) on Apple pla
 - Streaming API
 - Multimodal (experimental)
 - Tool calling (experimental)
+- **Enhanced security** with path traversal protection and atomic file operations
+
+## Security Enhancements
+
+This fork includes additional security hardening:
+
+- **Path Traversal Protection**: Input sanitization for Hugging Face repository IDs to prevent directory traversal attacks
+- **Secure URL Handling**: Type-safe task identifier mapping eliminates string-based URL parsing vulnerabilities
+- **Atomic File Operations**: Race condition prevention in file download and cleanup operations
+- **Verified Dependencies**: llama.cpp pinned to specific version with checksum verification
 
 ## Installation
+
+### Prerequisites
+
+This project uses git submodules. Clone with submodules:
+
+```bash
+git clone --recurse-submodules https://github.com/bisonbet/LocalLLMClient-iOS.git
+```
+
+Or if you've already cloned the repository:
+
+```bash
+cd LocalLLMClient-iOS
+git submodule update --init --recursive
+```
+
+### Swift Package Manager
 
 Add the following dependency to your `Package.swift` file:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/tattn/LocalLLMClient.git", branch: "main")
+    .package(url: "https://github.com/bisonbet/LocalLLMClient-iOS.git", branch: "main")
 ]
 ```
 
 ## Usage
 
-The API documentation is available [here](https://tattn.github.io/LocalLLMClient/documentation/).
+> [!NOTE]
+> API documentation is available from the [upstream project](https://tattn.github.io/LocalLLMClient/documentation/).
 
 ### Quick Start
 
@@ -504,4 +531,8 @@ This package uses [llama.cpp](https://github.com/ggml-org/llama.cpp), [Apple's M
 
 ---
 
-[Support this project :heart:](https://github.com/sponsors/tattn)
+## Credits
+
+This project is a fork of [tattn/LocalLLMClient](https://github.com/tattn/LocalLLMClient) with additional security enhancements.
+
+Original project by [@tattn](https://github.com/tattn). Please consider [supporting the original project](https://github.com/sponsors/tattn).

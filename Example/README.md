@@ -21,9 +21,9 @@ To run the example app:
 
 1. Clone the repository:
   ```bash
-  git clone --recursive https://github.com/tattn/LocalLLMClient
+  git clone --recurse-submodules https://github.com/bisonbet/LocalLLMClient-iOS.git
   ```
-  If you already cloned the repository without `--recursive`, run:
+  If you already cloned the repository without `--recurse-submodules`, run:
   ```bash
   git submodule update --init --recursive
   ```

@@ -43,8 +43,47 @@ public struct HuggingFaceAPI: Sendable {
         ///   - id: Repository identifier
         ///   - type: Repository type, defaults to `.models`
         public init(id: String, type: RepoType = .models) {
-            self.id = id
+            self.id = Self.sanitizeRepoID(id)
             self.type = type
+        }
+
+        /// Sanitizes a repository ID to prevent path traversal attacks
+        /// - Parameter id: The repository ID to sanitize
+        /// - Returns: A sanitized repository ID safe for use in file paths
+        private static func sanitizeRepoID(_ id: String) -> String {
+            // Remove any path traversal sequences and dangerous characters
+            var sanitized = id
+                .replacingOccurrences(of: "..", with: "")
+                .replacingOccurrences(of: "~", with: "")
+
+            // Remove leading/trailing slashes and whitespace
+            sanitized = sanitized.trimmingCharacters(in: CharacterSet(charactersIn: "/\\").union(.whitespaces))
+
+            // Validate format: should be alphanumeric with hyphens, underscores, dots, and single forward slashes
+            // Typical format: "organization/model-name" or "model-name"
+            let allowedCharacters = CharacterSet.alphanumerics
+                .union(CharacterSet(charactersIn: "-_./"))
+
+            // Filter out any characters not in the allowed set
+            sanitized = String(sanitized.unicodeScalars.filter { allowedCharacters.contains($0) })
+
+            // Ensure we don't have multiple consecutive slashes
+            while sanitized.contains("//") {
+                sanitized = sanitized.replacingOccurrences(of: "//", with: "/")
+            }
+
+            // Validate that we have at most one slash (organization/name format)
+            // or no slashes (name format only)
+            let slashCount = sanitized.filter { $0 == "/" }.count
+            if slashCount > 1 {
+                // If there are multiple slashes, take only the last two components
+                let components = sanitized.split(separator: "/")
+                if components.count >= 2 {
+                    sanitized = "\(components[components.count - 2])/\(components[components.count - 1])"
+                }
+            }
+
+            return sanitized
         }
     }
 

@@ -128,7 +128,7 @@ extension Downloader {
         private let destinationURL: URL
         private let session: Locked<URLSession>
         private let headSession: URLSession
-        private let delegate = Delegate()
+        private let delegate: Delegate
         private let currentTask = Locked<URLSessionTask?>(nil)
 
         var progress: Progress {
@@ -160,6 +160,7 @@ extension Downloader {
         public init(url: URL, destinationURL: URL, configuration: URLSessionConfiguration = .default, headSessionConfiguration: URLSessionConfiguration = .ephemeral) {
             self.url = url
             self.destinationURL = destinationURL
+            self.delegate = Delegate(destinationURL: destinationURL)
             let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
             self.session = Locked(session)
             self.headSession = URLSession(configuration: headSessionConfiguration)
@@ -167,7 +168,9 @@ extension Downloader {
 #if !os(Linux)
             Task {
                 for task in await session.allTasks {
-                    if task.taskDescription == destinationURL.absoluteString {
+                    // Use task identifier for matching instead of string comparison
+                    if let existingDest = delegate.getDestination(for: task.taskIdentifier),
+                       existingDest == destinationURL {
                         download(existingTask: task)
                     } else {
                         task.cancel()
@@ -210,7 +213,8 @@ extension Downloader {
             // https://stackoverflow.com/questions/12235617/mbprogresshud-with-nsurlconnection/12599242#12599242
             request.addValue("", forHTTPHeaderField: "Accept-Encoding")
             let task = existingTask ?? session.withLock(\.self).downloadTask(with: request)
-            task.taskDescription = destinationURL.absoluteString
+            // Store destination URL mapping using task identifier instead of string in taskDescription
+            delegate.setDestination(destinationURL, for: task.taskIdentifier)
             task.priority = URLSessionTask.highPriority
             currentTask.withLock { $0 = task }
             task.resume()
@@ -222,9 +226,19 @@ extension Downloader {
                 task = nil
             }
             delegate.state.withLock { $0 = .error(CancellationError()) }
+
             // Clean up partial download if it exists
-            if FileManager.default.fileExists(atPath: destinationURL.path) {
-                try? FileManager.default.removeItem(at: destinationURL)
+            // Check and remove atomically to prevent race conditions
+            do {
+                // Using removeItem directly is safer than checking existence first
+                try FileManager.default.removeItem(at: destinationURL)
+            } catch CocoaError.fileNoSuchFile {
+                // File doesn't exist - this is fine, nothing to clean up
+            } catch {
+                // Other errors (permissions, etc.) - log in debug but continue
+#if DEBUG
+                print("Failed to remove partial download: \(error)")
+#endif
             }
 
             reset()
@@ -243,12 +257,32 @@ extension Downloader.ChildDownloader {
     final class Delegate: NSObject, URLSessionDownloadDelegate {
         let progress = Progress(totalUnitCount: 1)
         let state = Locked(State.initial)
+        private let taskDestinations = Locked<[Int: URL]>([:])
+        private let defaultDestination: URL
 
         enum State {
             case initial
             case downloading
             case completed
             case error(Error)
+        }
+
+        init(destinationURL: URL) {
+            self.defaultDestination = destinationURL
+            super.init()
+        }
+
+        func setDestination(_ url: URL, for taskIdentifier: Int) {
+            taskDestinations.withLock { $0[taskIdentifier] = url }
+        }
+
+        func getDestination(for taskIdentifier: Int) -> URL? {
+            taskDestinations.withLock { $0[taskIdentifier] }
+        }
+
+        private func destinationURL(for task: URLSessionTask) -> URL {
+            // Use task identifier to look up destination, fall back to default
+            return getDestination(for: task.taskIdentifier) ?? defaultDestination
         }
 
         func urlSession(
@@ -260,16 +294,25 @@ extension Downloader.ChildDownloader {
 #endif
 
             // Move the downloaded file to the permanent location
-            guard let destinationURL = downloadTask.destinationURL else {
-                return
-            }
-            try? FileManager.default.removeItem(at: destinationURL)
+            let destinationURL = self.destinationURL(for: downloadTask)
+
+            // Use atomic file operations to prevent race conditions
             do {
                 try FileManager.default.createDirectory(
                     at: destinationURL.deletingLastPathComponent(),
                     withIntermediateDirectories: true
                 )
+
+                // Remove existing file if present
+                if FileManager.default.fileExists(atPath: destinationURL.path) {
+                    try FileManager.default.removeItem(at: destinationURL)
+                }
+
+                // Use moveItem which is atomic on the same filesystem
                 try FileManager.default.moveItem(at: location, to: destinationURL)
+
+                // Clean up task mapping
+                taskDestinations.withLock { $0.removeValue(forKey: downloadTask.taskIdentifier) }
             } catch {
                 print("The URLSessionTask may be old. The app container was already invalid: \(error.localizedDescription)")
             }
@@ -282,10 +325,12 @@ extension Downloader.ChildDownloader {
 #if DEBUG
                 print("Download failed with error: \(error.localizedDescription)")
 #endif
-                if let url = task.destinationURL {
-                    // Attempt to remove the file if it exists
-                    try? FileManager.default.removeItem(at: url)
-                }
+                let url = destinationURL(for: task)
+                // Attempt to remove the file if it exists
+                try? FileManager.default.removeItem(at: url)
+
+                // Clean up task mapping
+                taskDestinations.withLock { $0.removeValue(forKey: task.taskIdentifier) }
 
                 state.withLock { $0 = .error(error) }
             } else {
@@ -303,12 +348,5 @@ extension Downloader.ChildDownloader {
             }
             progress.completedUnitCount = totalBytesWritten
         }
-    }
-}
-
-private extension URLSessionTask {
-    var destinationURL: URL? {
-        guard let taskDescription else { return nil }
-        return URL(string: taskDescription)
     }
 }

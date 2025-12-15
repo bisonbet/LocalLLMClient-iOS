@@ -44,7 +44,7 @@ public func shutdownLlama() {
 // MARK: - Logging
 
 package extension Logger {
-    static let localllm = Logger(subsystem: "com.github.tattn.LocalLLMClient", category: "localllm")
+    static let localllm = Logger(subsystem: "com.github.bisonbet.LocalLLMClient-iOS", category: "localllm")
 }
 
 public func setLlamaLog(callback: ((LlamaLogLevel, String) -> Void)?) {
